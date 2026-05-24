@@ -45,6 +45,7 @@
       <button class="tabButton" data-tab="version1Tab" data-mobile-label="V1">VERSION 1</button>
       <button class="tabButton" data-tab="version2Tab" data-mobile-label="V2">VERSION 2</button>
       <button class="tabButton" data-tab="version3Tab" data-mobile-label="V3">VERSION 3</button>
+      <button class="tabButton" data-tab="version4Tab" data-mobile-label="V4">VERSION 4</button>
       <button class="tabButton" data-tab="resultsTab" data-mobile-label="RESULTS">RESULTS</button>
       <button class="tabButton" data-tab="statusTab" data-mobile-label="STATUS">STATUS</button>
       <button class="tabButton" data-tab="bonusPollTab" data-mobile-label="POLL">BONUS POLL</button>
@@ -74,6 +75,12 @@
             <span class="versionInfoBtn" data-version-info="3" role="button" tabindex="0" aria-label="Version 3 information">i</span>
             <span>VERSION 3</span>
             <small>Six gameplay categories</small>
+          </button>
+
+          <button class="versionLaunch" data-tab="version4Tab">
+            <span class="versionInfoBtn" data-version-info="4" role="button" tabindex="0" aria-label="Version 4 information">i</span>
+            <span>VERSION 4</span>
+            <small>Guided player questionnaire</small>
           </button>
         </div>
       </div>
@@ -240,6 +247,37 @@
       </div>
     </section>
 
+    <section id="version4Tab" class="tabContent">
+      <div class="sectionHeader">
+        <div>
+          <button class="sectionKicker versionKickerInfo" type="button" data-version-info="4">
+            <span class="homeInfoIcon">i</span>
+            <span>VERSION 4</span>
+          </button>
+          <h2>GUIDED QUESTIONNAIRE</h2>
+          <p>Rate one player at a time across game modes and gameplay categories.</p>
+        </div>
+      </div>
+
+      <div class="raterCard">
+        <label for="version4Rater">YOUR NAME (RATER)</label>
+        <select id="version4Rater" class="raterSelect"></select>
+        <div id="version4Verification" class="verificationPanel" data-version="4"></div>
+      </div>
+
+      <div id="version4Wizard" class="version4Wizard"></div>
+
+      <div class="submitRow">
+        <button id="resetVersion4Btn" class="resetBtn">CLEAR FORM</button>
+        <button id="clearSavedVersion4Btn" class="clearSavedBtn">CLEAR SAVED</button>
+        <button id="submitVersion4Btn" class="submitBtn">SUBMIT VERSION 4</button>
+        <label class="emailCopyOption">
+          <input id="emailCopyVersion4" type="checkbox" checked>
+          <span>Email me a copy</span>
+        </label>
+      </div>
+    </section>
+
     <section id="resultsTab" class="tabContent">
       <div class="sectionHeader">
         <div>
@@ -299,6 +337,14 @@
               </div>
             </div>
             <div>
+              <strong>V4 AVG</strong>
+              <span>Version 4 uses a guided questionnaire. Xan rates Malcolm one player at a time across Elimination, Blitz, CTF, and six gameplay categories. Those nine scores become one Version 4 score for Malcolm from Xan. V4 AVG then averages Malcolm's Version 4 scores from all voters.</span>
+            </div>
+            <div>
+              <strong>V4 MED</strong>
+              <span>V4 MED sorts Malcolm's final Version 4 scores from all voters and uses the middle score. If the middle two scores are 7 and 8, the median is 7.5.</span>
+            </div>
+            <div>
               <strong>APPLY TO PLAYERS</strong>
               <span>Select one method, then Apply to Players. The Players sheet is backed up first, then the selected method becomes the current Skill value.</span>
             </div>
@@ -320,6 +366,8 @@
             <option value="v3Avg">Version 3 Average</option>
             <option value="v3Med">Version 3 Median</option>
             <option value="weighted">Version 3 Weighted</option>
+            <option value="v4Avg">Version 4 Average</option>
+            <option value="v4Med">Version 4 Median</option>
           </select>
           <button id="ratingsLockToggleBtn" class="smallBtn ratingsLockBtn">LOCK RATINGS</button>
           <button id="applyFinalRatingsBtn" class="smallBtn">APPLY TO PLAYERS</button>
@@ -339,6 +387,8 @@
               <option value="v3Avg">V3 Average</option>
               <option value="v3Med">V3 Median</option>
               <option value="weighted">V3 Weighted</option>
+              <option value="v4Avg">V4 Average</option>
+              <option value="v4Med">V4 Median</option>
             </select>
             <button id="mobileResultsSortDirection" type="button" class="mobileSortDirection">&#9650;</button>
           </div>
@@ -353,6 +403,8 @@
           <button type="button" class="resultsSortBtn" data-sort="v3Avg">V3 AVG</button>
           <button type="button" class="resultsSortBtn" data-sort="v3Med">V3 MED</button>
           <button type="button" class="resultsSortBtn" data-sort="weighted">V3 WEIGHTED</button>
+          <button type="button" class="resultsSortBtn" data-sort="v4Avg">V4 AVG</button>
+          <button type="button" class="resultsSortBtn" data-sort="v4Med">V4 MED</button>
         </div>
         <div id="resultsRows"></div>
       </div>
@@ -363,7 +415,7 @@
         <div>
           <div class="sectionKicker">STATUS</div>
           <h2>SUBMISSION STATUS</h2>
-          <p>Review player submission status across all three rating versions.</p>
+          <p>Review player submission status across all four rating versions.</p>
         </div>
         <button id="refreshStatusBtn" class="smallBtn">REFRESH STATUS</button>
       </div>
@@ -381,6 +433,9 @@
           <div>V3</div>
           <div>V3 UPD</div>
           <div>V3 CLR</div>
+          <div>V4</div>
+          <div>V4 UPD</div>
+          <div>V4 CLR</div>
         </div>
         <div id="statusRows"></div>
       </div>
