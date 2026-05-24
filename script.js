@@ -9,7 +9,8 @@ let fullRatingsDataLoaded = false;
 let savedSubmissionState = {
   1: false,
   2: false,
-  3: false
+  3: false,
+  4: false
 };
 let ratingsLocked = false;
 let currentResultsSort = {
@@ -32,8 +33,11 @@ let verificationCountdownTimer = null;
 let versionBaselineSnapshots = {
   1: JSON.stringify({ rater: "", ratings: [] }),
   2: JSON.stringify({ rater: "", ratings: [] }),
-  3: JSON.stringify({ rater: "", ratings: [] })
+  3: JSON.stringify({ rater: "", ratings: [] }),
+  4: JSON.stringify({ rater: "", ratings: [] })
 };
+let version4CurrentPlayerIndex = 0;
+let version4DraftRatings = {};
 
 const version3Categories = [
   {
@@ -90,6 +94,11 @@ const version2Modes = [
     label: "CAPTURE THE FLAG",
     tip: "Overall Capture the Flag performance."
   }
+];
+
+const version4Questions = [
+  ...version2Modes,
+  ...version3Categories
 ];
 
 window.addEventListener("load", async () => {
@@ -276,6 +285,16 @@ const versionInfoMessages = {
         <span>COMMUNICATION <strong>10%</strong></span>
       </div>
     </div>
+  `,
+  4: `
+    <div class="versionInfoModal">
+      <h3>VERSION 4 QUESTIONNAIRE</h3>
+      <p>Version 4 asks the same kind of rating questions, but it shows one player at a time. This is easier on mobile and helps the rater focus on Basith, then Sameer, then the next player.</p>
+      <h3>HOW IT SCORES</h3>
+      <p>Each player gets scores for Elimination, Blitz, CTF, Combat, Communication, Decision Making, Map Awareness, Movement, and Team Impact. Those scores are averaged into one Version 4 score for that player.</p>
+      <h3>EXAMPLE</h3>
+      <p>If Xan rates Malcolm with nine scores and those scores add up to 72, Malcolm's Version 4 score from Xan is 72 / 9 = 8. Other raters' Version 4 scores are then averaged or sorted for median on the Results tab.</p>
+    </div>
   `
 };
 
@@ -300,6 +319,8 @@ function getTabFromHash(){
     version2: "version2Tab",
     v3: "version3Tab",
     version3: "version3Tab",
+    v4: "version4Tab",
+    version4: "version4Tab",
     results: "resultsTab",
     status: "statusTab",
     home: "homeTab"
@@ -392,12 +413,15 @@ function setupButtons(){
   document.getElementById("submitVersion1Btn").onclick = () => submitVersion(1);
   document.getElementById("submitVersion2Btn").onclick = () => submitVersion(2);
   document.getElementById("submitVersion3Btn").onclick = () => submitVersion(3);
+  document.getElementById("submitVersion4Btn").onclick = () => submitVersion(4);
   document.getElementById("resetVersion1Btn").onclick = () => resetVersion(1);
   document.getElementById("resetVersion2Btn").onclick = () => resetVersion(2);
   document.getElementById("resetVersion3Btn").onclick = () => resetVersion(3);
+  document.getElementById("resetVersion4Btn").onclick = () => resetVersion(4);
   document.getElementById("clearSavedVersion1Btn").onclick = () => clearSavedVersion(1);
   document.getElementById("clearSavedVersion2Btn").onclick = () => clearSavedVersion(2);
   document.getElementById("clearSavedVersion3Btn").onclick = () => clearSavedVersion(3);
+  document.getElementById("clearSavedVersion4Btn").onclick = () => clearSavedVersion(4);
   document.getElementById("refreshResultsBtn").onclick = refreshResults;
   document.getElementById("refreshStatusBtn").onclick = refreshStatus;
   document.getElementById("ratingsLockToggleBtn").onclick = toggleRatingsLock;
@@ -577,7 +601,7 @@ function updateRatingControlLockState(){
   const selectedRater = currentRaterVerification.playerName;
   const verified = isCurrentRaterVerified();
 
-  document.querySelectorAll(".ratingRow, .version2ModePlayerRow, .version3CategoryPlayerRow").forEach(row => {
+  document.querySelectorAll(".ratingRow, .version2ModePlayerRow, .version3CategoryPlayerRow, .version4QuestionField").forEach(row => {
     const isSelf = selectedRater && row.dataset.player === selectedRater;
     const shouldDisable = !verified || !!isSelf;
 
@@ -675,6 +699,30 @@ function getVersionFormSnapshot(version){
     return JSON.stringify({ rater: "", ratings: [] });
   }
 
+  if(version === 4){
+    captureVersion4VisibleDraft();
+
+    const players = allPlayers
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .filter(player => player.name !== rater);
+
+    const ratings = players.map(player => {
+      const rating = { ratedPlayer: player.name };
+      const draft = version4DraftRatings[player.name] || {};
+
+      version4Questions.forEach(question => {
+        rating[question.key] = draft[question.key] !== null && typeof draft[question.key] !== "undefined"
+          ? Number(draft[question.key])
+          : null;
+      });
+
+      return rating;
+    });
+
+    return JSON.stringify({ rater, ratings });
+  }
+
   if(version === 3){
     const players = allPlayers
       .slice()
@@ -743,7 +791,7 @@ function captureVersionBaseline(version){
 }
 
 function captureAllVersionBaselines(){
-  [1, 2, 3].forEach(version => captureVersionBaseline(version));
+  [1, 2, 3, 4].forEach(version => captureVersionBaseline(version));
 }
 
 function restoreVersionBaseline(version){
@@ -767,7 +815,7 @@ function restoreVersionBaseline(version){
 }
 
 function restoreAllVersionBaselines(){
-  [1, 2, 3].forEach(version => restoreVersionBaseline(version));
+  [1, 2, 3, 4].forEach(version => restoreVersionBaseline(version));
 }
 
 function isVersionDirty(version){
@@ -775,7 +823,7 @@ function isVersionDirty(version){
 }
 
 function hasAnyUnsavedChanges(){
-  return [1, 2, 3].some(version => isVersionDirty(version));
+  return [1, 2, 3, 4].some(version => isVersionDirty(version));
 }
 
 function renderVerificationPanels(){
@@ -969,7 +1017,7 @@ async function verifyRatingCode(panel = null){
 }
 
 function updateSubmitButtons(){
-  [1, 2, 3].forEach(version => {
+  [1, 2, 3, 4].forEach(version => {
     const btn = document.getElementById(`submitVersion${version}Btn`);
     const clearSavedBtn = document.getElementById(`clearSavedVersion${version}Btn`);
     if(!btn || !clearSavedBtn) return;
@@ -1135,6 +1183,9 @@ function renderStatus(){
         <div class="statusMetric" data-label="V3">${formatStatusBadge(!!status.v3Voted)}</div>
         <div class="statusMetric" data-label="V3 Updates">${status.v3Updates || 0}</div>
         <div class="statusMetric" data-label="V3 Clears">${status.v3Clears || 0}</div>
+        <div class="statusMetric" data-label="V4">${formatStatusBadge(!!status.v4Voted)}</div>
+        <div class="statusMetric" data-label="V4 Updates">${status.v4Updates || 0}</div>
+        <div class="statusMetric" data-label="V4 Clears">${status.v4Clears || 0}</div>
         <div class="mobileStatusMatrix">
           <div class="mobileMatrixLine mobileMatrixHead">
             <span></span>
@@ -1160,6 +1211,12 @@ function renderStatus(){
             <span>${status.v3Updates || 0}</span>
             <span>${status.v3Clears || 0}</span>
           </div>
+          <div class="mobileMatrixLine">
+            <span>V4</span>
+            <span>${formatStatusBadge(!!status.v4Voted)}</span>
+            <span>${status.v4Updates || 0}</span>
+            <span>${status.v4Clears || 0}</span>
+          </div>
         </div>
       `;
       container.appendChild(row);
@@ -1172,6 +1229,7 @@ function renderAllVersions(){
   renderVersion1Rows();
   renderVersion2Rows();
   renderVersion3Rows();
+  renderVersion4Wizard();
   captureAllVersionBaselines();
 }
 
@@ -1365,7 +1423,13 @@ function getNumericSliderLabel(name){
     overall: "Overall Rating",
     elimination: "Elimination",
     blitz: "Blitz",
-    ctf: "CTF"
+    ctf: "CTF",
+    combat: "Combat Skills",
+    communication: "Communication",
+    decision: "Decision Making",
+    awareness: "Map Awareness",
+    movement: "Movement / Speed",
+    impact: "Team Impact"
   };
 
   return labels[name] || name;
@@ -1455,6 +1519,11 @@ async function resetVersion(version){
 
   if(!confirmed) return;
 
+  if(version === 4){
+    version4DraftRatings = {};
+    version4CurrentPlayerIndex = 0;
+  }
+
   rerenderVersion(version);
   if(!savedSubmissionState[version]){
     captureVersionBaseline(version);
@@ -1506,6 +1575,10 @@ async function clearSavedVersion(version){
     savedSubmissionState[version] = false;
     latestResults = res.results || latestResults;
     latestStatus = res.status || latestStatus;
+    if(version === 4){
+      version4DraftRatings = {};
+      version4CurrentPlayerIndex = 0;
+    }
     rerenderVersion(version);
     captureVersionBaseline(version);
     updateSubmitButtons();
@@ -1723,6 +1796,160 @@ function renderVersion3Rows(){
   bindVersion3CategoryControls(rows);
 }
 
+function getVersion4RatedPlayers(){
+  const selectedRater = getRaterForVersion(4);
+
+  return allPlayers
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter(player => player.name !== selectedRater);
+}
+
+function getVersion4Slider(playerName, field){
+  const row = Array.from(document.querySelectorAll("#version4Wizard .version4QuestionField"))
+    .find(item => item.dataset.player === playerName && item.dataset.field === field);
+
+  return row ? row.querySelector(`.ratingSlider[data-field="${field}"]`) : null;
+}
+
+function getVersion4CompletionCount(){
+  captureVersion4VisibleDraft();
+
+  const players = getVersion4RatedPlayers();
+  let completed = 0;
+
+  players.forEach(player => {
+    const draft = version4DraftRatings[player.name] || {};
+    const complete = version4Questions.every(question => {
+      return draft[question.key] !== null && typeof draft[question.key] !== "undefined";
+    });
+
+    if(complete) completed++;
+  });
+
+  return {
+    completed,
+    total: players.length
+  };
+}
+
+function renderVersion4Wizard(){
+  const container = document.getElementById("version4Wizard");
+  if(!container) return;
+
+  const selectedRater = getRaterForVersion(4);
+  const lockedUntilVerified = !isCurrentRaterVerified();
+  const players = getVersion4RatedPlayers();
+
+  if(version4CurrentPlayerIndex >= players.length){
+    version4CurrentPlayerIndex = Math.max(0, players.length - 1);
+  }
+
+  if(!selectedRater){
+    container.innerHTML = `
+      <div class="version4Empty">
+        Select your name and verify your code to start the guided questionnaire.
+      </div>
+    `;
+    return;
+  }
+
+  if(!players.length){
+    container.innerHTML = `
+      <div class="version4Empty">
+        There are no other players to rate.
+      </div>
+    `;
+    return;
+  }
+
+  const player = players[version4CurrentPlayerIndex];
+  const progress = getVersion4CompletionCount();
+  const playerDraft = version4DraftRatings[player.name] || {};
+
+  container.innerHTML = `
+    <div class="version4Card">
+      <div class="version4Top">
+        <div>
+          <div class="version4Eyebrow">Player ${version4CurrentPlayerIndex + 1} of ${players.length}</div>
+          <h3>RATE ${player.name}</h3>
+        </div>
+        <div class="version4Progress">${progress.completed}/${progress.total} COMPLETE</div>
+      </div>
+
+      <div class="version4QuestionList">
+        ${version4Questions.map(question => `
+          <div class="version4QuestionField" data-player="${escapeHtml(player.name)}" data-field="${question.key}">
+            <div class="version4QuestionLabel">
+              <span class="categoryTip" data-tip="${escapeHtml(question.tip)}">i</span>
+              <span>${question.label}</span>
+            </div>
+            ${createNumericSlider(
+              question.key,
+              playerDraft[question.key] !== null && typeof playerDraft[question.key] !== "undefined" ? playerDraft[question.key] : 5,
+              lockedUntilVerified,
+              playerDraft[question.key] !== null && typeof playerDraft[question.key] !== "undefined"
+            )}
+          </div>
+        `).join("")}
+      </div>
+
+      <div class="version4Nav">
+        <button id="version4PrevBtn" class="smallBtn" type="button" ${version4CurrentPlayerIndex === 0 ? "disabled" : ""}>BACK</button>
+        <button id="version4NextBtn" class="smallBtn" type="button" ${version4CurrentPlayerIndex === players.length - 1 ? "disabled" : ""}>NEXT PLAYER</button>
+      </div>
+    </div>
+  `;
+
+  bindNumericSliders(container);
+  bindVersion4DraftUpdates(container);
+
+  const prevBtn = document.getElementById("version4PrevBtn");
+  const nextBtn = document.getElementById("version4NextBtn");
+
+  if(prevBtn){
+    prevBtn.onclick = () => {
+      captureVersion4VisibleDraft();
+      version4CurrentPlayerIndex = Math.max(0, version4CurrentPlayerIndex - 1);
+      renderVersion4Wizard();
+    };
+  }
+
+  if(nextBtn){
+    nextBtn.onclick = () => {
+      captureVersion4VisibleDraft();
+      version4CurrentPlayerIndex = Math.min(players.length - 1, version4CurrentPlayerIndex + 1);
+      renderVersion4Wizard();
+    };
+  }
+}
+
+function captureVersion4VisibleDraft(){
+  document.querySelectorAll("#version4Wizard .version4QuestionField").forEach(row => {
+    const playerName = row.dataset.player;
+    const field = row.dataset.field;
+    const slider = row.querySelector(".ratingSlider");
+
+    if(!playerName || !field || !slider) return;
+
+    if(!version4DraftRatings[playerName]){
+      version4DraftRatings[playerName] = {};
+    }
+
+    version4DraftRatings[playerName][field] = slider.dataset.rated === "true"
+      ? Number(slider.value)
+      : null;
+  });
+}
+
+function bindVersion4DraftUpdates(container){
+  container.querySelectorAll(".version4QuestionField .ratingSlider, .version4QuestionField .valueBox").forEach(control => {
+    control.addEventListener("input", () => {
+      captureVersion4VisibleDraft();
+    });
+  });
+}
+
 document.addEventListener("change", async e => {
   if(e.target.classList.contains("raterSelect")){
     const nextRater = e.target.value;
@@ -1750,6 +1977,7 @@ function rerenderVersion(version){
   if(version === 1) renderVersion1Rows();
   if(version === 2) renderVersion2Rows();
   if(version === 3) renderVersion3Rows();
+  if(version === 4) renderVersion4Wizard();
 }
 
 async function handleRaterChange(rater){
@@ -1758,8 +1986,10 @@ async function handleRaterChange(rater){
   if(!rater) return;
 
   setAllRaterSelects(rater);
-  savedSubmissionState = { 1: false, 2: false, 3: false };
+  savedSubmissionState = { 1: false, 2: false, 3: false, 4: false };
   resetVerificationState();
+  version4CurrentPlayerIndex = 0;
+  version4DraftRatings = {};
   renderAllVersions();
   updateSubmitButtons();
 
@@ -1768,7 +1998,7 @@ async function handleRaterChange(rater){
   try{
     await refreshRaterVerificationStatus(rater);
 
-    const responses = await Promise.all([1, 2, 3].map(version => {
+    const responses = await Promise.all([1, 2, 3, 4].map(version => {
       return api({
         action: "getRaterSubmission",
         version: version,
@@ -1799,6 +2029,27 @@ function applySavedSubmission(version, ratings){
       byPlayer[rating.ratedPlayer] = rating;
     }
   });
+
+  if(version === 4){
+    version4DraftRatings = {};
+
+    Object.keys(byPlayer).forEach(playerName => {
+      const rating = byPlayer[playerName];
+      version4DraftRatings[playerName] = {};
+
+      version4Questions.forEach(question => {
+        const value = Number(rating[question.key]);
+
+        if(!Number.isNaN(value)){
+          version4DraftRatings[playerName][question.key] = Math.max(0, Math.min(10, value));
+        }
+      });
+    });
+
+    renderVersion4Wizard();
+    captureVersionBaseline(version);
+    return;
+  }
 
   if(version === 3){
     Object.keys(byPlayer).forEach(playerName => {
@@ -1943,10 +2194,45 @@ function collectVersion3(){
   return { ok: true, version: 3, rater, ratings };
 }
 
+function collectVersion4(){
+  const rater = getRaterForVersion(4);
+  if(!rater) return { ok: false, error: "Select your name before submitting Version 4." };
+
+  captureVersion4VisibleDraft();
+
+  const ratings = allPlayers
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter(player => player.name !== rater)
+    .map(player => {
+      const rating = { ratedPlayer: player.name };
+      const draft = version4DraftRatings[player.name] || {};
+
+      version4Questions.forEach(question => {
+        rating[question.key] = draft[question.key] !== null && typeof draft[question.key] !== "undefined"
+          ? Number(draft[question.key])
+          : null;
+      });
+
+      return rating;
+    });
+
+  const missing = ratings.some(rating => {
+    return version4Questions.some(question => rating[question.key] === null);
+  });
+
+  if(missing){
+    return { ok: false, error: "Please answer every Version 4 question before submitting." };
+  }
+
+  return { ok: true, version: 4, rater, ratings };
+}
+
 function collectVersion(version){
   if(version === 1) return collectVersion1();
   if(version === 2) return collectVersion2();
-  return collectVersion3();
+  if(version === 3) return collectVersion3();
+  return collectVersion4();
 }
 
 async function submitVersion(version){
@@ -2101,7 +2387,9 @@ function getFinalRatingMethodLabel(method){
     v2Med: "Version 2 Median",
     v3Avg: "Version 3 Average",
     v3Med: "Version 3 Median",
-    weighted: "Version 3 Weighted"
+    weighted: "Version 3 Weighted",
+    v4Avg: "Version 4 Average",
+    v4Med: "Version 4 Median"
   };
 
   return labels[method] || method;
@@ -2191,15 +2479,18 @@ function buildResultRows(){
       const v1 = getResultItem(player.name, 1);
       const v2 = getResultItem(player.name, 2);
       const v3 = getResultItem(player.name, 3);
+      const v4 = getResultItem(player.name, 4);
       const versionAverages = [
         getResultAverage(v1),
         getResultAverage(v2),
-        getResultAverage(v3)
+        getResultAverage(v3),
+        getResultAverage(v4)
       ];
       const versionMedians = [
         getResultMedian(v1),
         getResultMedian(v2),
-        getResultMedian(v3)
+        getResultMedian(v3),
+        getResultMedian(v4)
       ];
 
       return {
@@ -2210,7 +2501,9 @@ function buildResultRows(){
         v2Med: versionMedians[1],
         v3Avg: versionAverages[2],
         v3Med: versionMedians[2],
-        weighted: getResultNumber(v3, "weightedScore")
+        weighted: getResultNumber(v3, "weightedScore"),
+        v4Avg: versionAverages[3],
+        v4Med: versionMedians[3]
       };
     });
 }
@@ -2268,6 +2561,8 @@ function renderResults(){
         <div class="resultsMetric" data-label="V3 Average">${formatScore(player.v3Avg)}</div>
         <div class="resultsMetric" data-label="V3 Median">${formatScore(player.v3Med)}</div>
         <div class="resultsMetric" data-label="V3 Weighted">${formatScore(player.weighted)}</div>
+        <div class="resultsMetric" data-label="V4 Average">${formatScore(player.v4Avg)}</div>
+        <div class="resultsMetric" data-label="V4 Median">${formatScore(player.v4Med)}</div>
         <div class="mobileResultsMatrix">
           <div class="mobileMatrixLine mobileMatrixHead">
             <span></span>
@@ -2292,6 +2587,12 @@ function renderResults(){
             <span>${formatScore(player.v3Avg)}</span>
             <span>${formatScore(player.v3Med)}</span>
             <span>${formatScore(player.weighted)}</span>
+          </div>
+          <div class="mobileMatrixLine">
+            <span>V4</span>
+            <span>${formatScore(player.v4Avg)}</span>
+            <span>${formatScore(player.v4Med)}</span>
+            <span>-</span>
           </div>
         </div>
       `;
